@@ -7,3 +7,4 @@ hardware/fp-info-cache
 hardware/*.kicad_prl
 tools/
 .~lock.*#
+release/
