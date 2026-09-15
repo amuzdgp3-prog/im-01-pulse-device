@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "im01_lcsc")(type "KiCad")(uri "${KIPRJMOD}/lib/lcsc.pretty")(options "")(descr "ИМ-01: посадочные места деталей с LCSC (easyeda2kicad)"))
+)

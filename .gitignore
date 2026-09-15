@@ -1,2 +1,8 @@
 sim/out/
 __pycache__/
+hardware/out/
+hardware/*.rpt
+hardware/*-backups/
+hardware/fp-info-cache
+hardware/*.kicad_prl
+tools/
