@@ -1,0 +1,86 @@
+* IM-01 step1: input stage, two channels (NO and NC)
+* Шаблон для run_sim.py: подставляются параметры, пороги входа MCU и команда выгрузки данных.
+* Каналы NO и NC собраны из одинаковых элементов: схема общая, режим определяется только
+* поведением выхода акцептора (и инверсией в прошивке), как требует §4.
+@PARAMS@
+
+.model SWOC SW(VT=0.5 VH=0.05 RON=5 ROFF=100Meg)
+* светодиод оптопары PC817-класса: VF около 1.13 В при 5 мА и 1.2 В при 20 мА
+.model DLED D(IS=1.7p N=2 RS=1 CJO=30p)
+.model D4148 D(IS=2.52n RS=0.568 N=1.752 CJO=4p M=0.4 TT=20n)
+* фототранзистор: ток коллектора = CTR * ток светодиода (задаётся током базы), TF даёт единицы мкс
+.model QPT NPN(BF=200 IS=1e-14 VAF=100 CJC=15p CJE=15p TF=2u)
+
+Vsup v12 0 {VLINE}
+Vdd vdd 0 {VDD}
+
+* управление: 1 = открытый коллектор акцептора замкнут на землю (для канала NO)
+* события: импульс 25 мс в 10 мс; спайк 0.2 мс в 60 мс; импульс 10 мс в 80 мс; импульс 100 мс в 110 мс
+Vctl ctrl_no 0 PWL(0 0 10m 0 10.01m 1 35m 1 35.01m 0 60m 0 60.01m 1 60.21m 1 60.22m 0 80m 0 80.01m 1 90m 1 90.01m 0 110m 0 110.01m 1 210m 1 210.01m 0)
+Bctl ctrl_nc 0 V = 1 - V(ctrl_no)
+
+* ---- канал NO: выход акцептора нормально разомкнут
+* штатный вход контроллера аппарата моделируется подтяжкой 10 кОм к 12 В
+Rhost_no v12 line_no 10k
+Vsw_no line_no sw_no 0
+S_no sw_no 0 ctrl_no 0 SWOC
+Rled_no v12 na_no {RLED}
+Dled_no na_no nk_no DLED
+Vsns_no nk_no line_no 0
+Drev_no line_no na_no D4148
+Fb_no 0 bq_no Vsns_no {CTR/200}
+Q_no oc_no bq_no 0 QPT
+Rpu_no vdd oc_no {RPU}
+Rf_no oc_no mcu_no {RF}
+Cf_no mcu_no 0 {CF}
+Bp_no prled_no 0 V = (V(v12)-V(na_no))*(V(v12)-V(na_no))/{RLED}
+
+* ---- канал NC: выход акцептора нормально замкнут, импульс = размыкание
+Rhost_nc v12 line_nc 10k
+Vsw_nc line_nc sw_nc 0
+S_nc sw_nc 0 ctrl_nc 0 SWOC
+Rled_nc v12 na_nc {RLED}
+Dled_nc na_nc nk_nc DLED
+Vsns_nc nk_nc line_nc 0
+Drev_nc line_nc na_nc D4148
+Fb_nc 0 bq_nc Vsns_nc {CTR/200}
+Q_nc oc_nc bq_nc 0 QPT
+Rpu_nc vdd oc_nc {RPU}
+Rf_nc oc_nc mcu_nc {RF}
+Cf_nc mcu_nc 0 {CF}
+Bp_nc prled_nc 0 V = (V(v12)-V(na_nc))*(V(v12)-V(na_nc))/{RLED}
+
+.tran 5u 230m 0 20u
+
+* NO: начало импульса — спад на входе MCU, конец — подъём
+.meas tran no_fall  WHEN v(mcu_no)=@VIL@ FALL=1 TD=10m
+.meas tran no_rise  WHEN v(mcu_no)=@VIH@ RISE=1 TD=35m
+.meas tran no_spk   MIN  v(mcu_no) FROM=60m TO=66m
+.meas tran no_low   MAX  v(mcu_no) FROM=20m TO=34m
+.meas tran no_high  MIN  v(mcu_no) FROM=5m TO=10m
+.meas tran no_f10   WHEN v(mcu_no)=@VIL@ FALL=1 TD=80m
+.meas tran no_r10   WHEN v(mcu_no)=@VIH@ RISE=1 TD=90m
+.meas tran no_f100  WHEN v(mcu_no)=@VIL@ FALL=1 TD=110m
+.meas tran no_r100  WHEN v(mcu_no)=@VIH@ RISE=1 TD=210m
+.meas tran no_iled  MAX  i(Vsns_no)
+.meas tran no_isink MAX  i(Vsw_no)
+.meas tran no_prled MAX  v(prled_no)
+
+* NC: начало импульса — подъём на входе MCU, конец — спад
+.meas tran nc_rise  WHEN v(mcu_nc)=@VIH@ RISE=1 TD=10m
+.meas tran nc_fall  WHEN v(mcu_nc)=@VIL@ FALL=1 TD=35m
+.meas tran nc_spk   MAX  v(mcu_nc) FROM=60m TO=66m
+.meas tran nc_low   MAX  v(mcu_nc) FROM=5m TO=10m
+.meas tran nc_high  MIN  v(mcu_nc) FROM=20m TO=34m
+.meas tran nc_r10   WHEN v(mcu_nc)=@VIH@ RISE=1 TD=80m
+.meas tran nc_f10   WHEN v(mcu_nc)=@VIL@ FALL=1 TD=90m
+.meas tran nc_r100  WHEN v(mcu_nc)=@VIH@ RISE=1 TD=110m
+.meas tran nc_f100  WHEN v(mcu_nc)=@VIL@ FALL=1 TD=210m
+.meas tran nc_iled  AVG  i(Vsns_nc) FROM=1m TO=9m
+.meas tran nc_prled MAX  v(prled_nc)
+
+.control
+run
+@WRDATA@
+.endc
+.end

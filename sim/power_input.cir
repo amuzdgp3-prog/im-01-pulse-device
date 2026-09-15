@@ -1,0 +1,45 @@
+* IM-01 step1: power input protection (hot-plug, reverse polarity, surge)
+* Шаблон для run_sim.py: подставляются параметры, источник, шаг/длительность и выгрузка данных.
+* Цепочка: источник -> кабель -> самовосстанавливающийся предохранитель -> диод Шоттки
+* (защита от переполюсовки) -> TVS -> входные конденсаторы -> преобразователь.
+@PARAMS@
+
+* диод Шоттки SS36-класса (3 А, 60 В)
+.model DSCH D(IS=5u RS=0.05 N=1.5 CJO=300p)
+* TVS SMBJ-класса: пробой около TVS_BV, динамическое сопротивление TVS_RS
+.model DTVS D(IS=1e-12 N=1.5 RS={TVS_RS} BV={TVS_BV} IBV=1m CJO=400p)
+
+@SOURCE@
+Rsrc src s1 {RSRC}
+Lcab s1 s2 {LCAB}
+Rcab s2 nin {RCAB}
+Rptc nin nf {RPTC}
+Vsi nf nf2 0
+Dsch nf2 vin DSCH
+Vtvs ntv 0 0
+Dtvs ntv vin DTVS
+Ccer vin nc1 {CIN_CER}
+Rcer nc1 0 5m
+Cel vin nc2 {CIN_EL}
+Rel nc2 0 {ESR_EL}
+* преобразователь как нагрузка постоянной мощности; ниже 4.5 В выключен (UVLO)
+Bload vin 0 I = {PLOAD}/max(V(vin),4.5)*0.5*(1+tanh((V(vin)-4.5)/0.2))
+Bpt ptvs 0 V = V(vin)*I(Vtvs)
+Bsr vschr 0 V = V(vin)-V(nf2)
+
+.tran @TSTEP@ @TSTOP@ 0 @TMAX@
+
+.meas tran vin_max  MAX v(vin)
+.meas tran vin_min  MIN v(vin)
+.meas tran itvs_max MAX i(Vtvs)
+.meas tran ptvs_max MAX v(ptvs)
+.meas tran etvs     INTEG v(ptvs) FROM=0 TO=@TSTOP@
+.meas tran vsch_rev MAX v(vschr)
+.meas tran iin_max  MAX i(Vsi)
+.meas tran itvs_end AVG i(Vtvs) FROM=@TEND0@ TO=@TSTOP@
+
+.control
+run
+@WRDATA@
+.endc
+.end

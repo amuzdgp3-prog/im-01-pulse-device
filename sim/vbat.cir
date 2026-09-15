@@ -1,0 +1,51 @@
+* IM-01 step1: VBAT droop under modem pulse load
+* Шаблон для run_sim.py.
+* Усреднённая модель buck-преобразователя с токовым управлением:
+*   внутренний контур тока — запаздывание первого порядка TAU_I;
+*   внешний ПИ-регулятор напряжения с частотой среза FC (KP и KI считает run_sim.py);
+*   ограничение тока ILIM; ток дросселя не бывает отрицательным (несинхронный режим).
+* Точной модели конкретной микросхемы нет, поэтому частота среза перебирается как параметр:
+* результат не должен зависеть от удачно угаданной компенсации.
+@PARAMS@
+.model DCLAMP D(IS=1e-14 N=0.3)
+
+Be err 0 V = 3.8 - V(bulk)
+* интегратор с ограничением (защита от насыщения интегратора)
+Bint 0 integ I = {KI}*1e-6*V(err)
+Cint integ 0 1u
+Rint integ 0 1G
+Dhi integ vhi DCLAMP
+Vhi vhi 0 {ILIM}
+Dlo vlo integ DCLAMP
+Vlo vlo 0 -0.5
+Bcmd cmd 0 V = max(0, min({ILIM}, {KP}*V(err) + V(integ)))
+Rl cmd il 1
+Cl il 0 {TAU_I}
+Bil 0 bulk I = V(il)
+
+* объёмный конденсатор на выходе преобразователя
+Cb bulk nb {CB}
+Rb nb 0 {ESRB}
+* дорожка от объёмного конденсатора до выводов модуля
+Rtr bulk ntr {RTRACE}
+Ltr ntr vmod {LTRACE}
+* керамика у выводов модуля
+Cc vmod ncc {CCER}
+Rc ncc 0 3m
+
+* нагрузка — модем: фон 100 мА плюс профиль передачи
+Ibase vmod 0 0.1
+@LOAD@
+
+.tran @TSTEP@ @TSTOP@ 0 @TMAX@
+
+.meas tran vmod_min  MIN v(vmod) FROM=@TMEAS@ TO=@TSTOP@
+.meas tran vbulk_min MIN v(bulk) FROM=@TMEAS@ TO=@TSTOP@
+.meas tran vmod_max  MAX v(vmod) FROM=@TMEAS@ TO=@TSTOP@
+.meas tran il_max    MAX v(il)   FROM=@TMEAS@ TO=@TSTOP@
+
+.control
+run
+@WRDATA@
+.endc
+.end

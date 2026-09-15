@@ -1,0 +1,51 @@
+* IM-01 step1: hold-up after loss of the 12 V line
+* Шаблон для run_sim.py. Проверяет утверждение §2: ёмкость даёт запас времени, чтобы записать
+* последний импульс, когда линия 12 В пропадает вместе с питанием акцептора.
+@PARAMS@
+.model DSCH D(IS=5u RS=0.05 N=1.5 CJO=300p)
+.model DCLAMP D(IS=1e-14 N=0.3)
+
+* линия 12 В аппарата пропадает в 10 мс; прочая нагрузка аппарата тянет её к нулю через 1 Ом.
+* Диод Шоттки защиты от переполюсовки не даёт аппарату разрядить входную ёмкость устройства.
+Vs src 0 PWL(0 12 10m 12 10.1m 0)
+Rs src nf 1
+Dsch nf vin DSCH
+Cin vin nci {CIN}
+Rci nci 0 0.1
+
+* преобразователь работает, пока вход выше выхода на VDROP (запас по скважности)
+Ben en 0 V = 0.5*(1+tanh((V(vin)-V(bulk)-{VDROP})/0.05))
+Be err 0 V = 3.8 - V(bulk)
+Bint 0 integ I = {KI}*1e-6*V(err)
+Cint integ 0 1u
+Rint integ 0 1G
+Dhi integ vhi DCLAMP
+Vhi vhi 0 {ILIM}
+Dlo vlo integ DCLAMP
+Vlo vlo 0 -0.5
+Bcmd cmd 0 V = max(0, min({ILIM}, {KP}*V(err) + V(integ)))
+Rl cmd il 1
+Cl il 0 {TAU_I}
+Bil 0 bulk I = V(il)*V(en)
+* ток из входной ёмкости по балансу мощности
+Bin vin 0 I = V(bulk)*V(il)*V(en)/({EFF}*max(V(vin),1))
+
+Cb bulk nb {CB}
+Rb nb 0 {ESRB}
+* нагрузка: при SHED=1 прошивка по сигналу «вход < 9 В» отключает модем ключом, остаётся ~10 мА MCU
+Bbase bulk 0 I = {IBASE}*(1-{SHED}*0.5*(1-tanh((V(vin)-9)/0.2))) + 0.01*{SHED}*0.5*(1-tanh((V(vin)-9)/0.2))
+* LDO 3.3 В для MCU и FRAM с падением 0.2 В
+Bldo vmcu 0 V = max(0, min(3.3, V(bulk)-0.2))
+
+.tran 2u 80m 0 10u
+
+.meas tran t_vin9  WHEN v(vin)=9    FALL=1 TD=10m
+.meas tran t_vb33  WHEN v(bulk)=3.3 FALL=1 TD=10m
+.meas tran t_vb30  WHEN v(bulk)=3.0 FALL=1 TD=10m
+.meas tran t_mcu27 WHEN v(vmcu)=2.7 FALL=1 TD=10m
+
+.control
+run
+@WRDATA@
+.endc
+.end

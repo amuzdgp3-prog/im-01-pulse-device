@@ -1,0 +1,97 @@
+* IM-01 step1: wiring faults on the input stage and 24 V on the pulse line
+* Шаблон для run_sim.py. Все случаи собраны параллельно в одной схеме.
+@PARAMS@
+
+.model SWOC SW(VT=0.5 VH=0.05 RON=5 ROFF=100Meg)
+.model DLED D(IS=1.7p N=2 RS=1 CJO=30p)
+.model D4148 D(IS=2.52n RS=0.568 N=1.752 CJO=4p M=0.4 TT=20n)
+
+V12 v12 0 12
+V24 v24 0 24
+* выход акцептора замыкается на 25 мс каждые 50 мс, впервые в 10 мс
+Vctl ctrl 0 PULSE(0 1 10m 10u 10u 25m 50m)
+Bctlnc ctrlnc 0 V = 1 - V(ctrl)
+
+* ---- N1: штатное подключение, только диод параллельно светодиоду (как в §4)
+Rhost_n1 v12 line_n1 10k
+S_n1 line_n1 0 ctrl 0 SWOC
+Rled_n1 v12 na_n1 {RLED}
+Dled_n1 na_n1 nk_n1 DLED
+Vsns_n1 nk_n1 line_n1 0
+Drev_n1 nk_n1 na_n1 D4148
+
+* ---- N2: штатное подключение, последовательный диод + диод параллельно светодиоду
+Rhost_n2 v12 line_n2 10k
+S_n2 line_n2 0 ctrl 0 SWOC
+Rled_n2 v12 nr_n2 {RLED}
+Dser_n2 nr_n2 na_n2 D4148
+Dled_n2 na_n2 nk_n2 DLED
+Vsns_n2 nk_n2 line_n2 0
+Drev_n2 nk_n2 na_n2 D4148
+
+* ---- A: перепутаны провода «+12 В» и «импульс», диод параллельно светодиоду есть
+Rhost_a v12 line_a 10k
+S_a line_a 0 ctrl 0 SWOC
+Rled_a line_a na_a {RLED}
+Dled_a na_a nk_a DLED
+Vsns_a nk_a v12 0
+Drev_a nk_a na_a D4148
+Bvr_a vr_a 0 V = V(nk_a)-V(na_a)
+Bp_a p_a 0 V = (V(line_a)-V(na_a))*(V(line_a)-V(na_a))/{RLED}
+
+* ---- B: то же, но диода параллельно светодиоду нет
+Rhost_b v12 line_b 10k
+S_b line_b 0 ctrl 0 SWOC
+Rled_b line_b na_b {RLED}
+Dled_b na_b nk_b DLED
+Vsns_b nk_b v12 0
+Bvr_b vr_b 0 V = V(nk_b)-V(na_b)
+
+* ---- C1: перепутаны «+12 В» и GND на разъёме устройства, только диод параллельно светодиоду
+Rhost_c1 v12 line_c1 10k
+S_c1 line_c1 0 ctrl 0 SWOC
+Rled_c1 0 na_c1 {RLED}
+Dled_c1 na_c1 nk_c1 DLED
+Vsns_c1 nk_c1 line_c1 0
+Drev_c1 nk_c1 na_c1 D4148
+Bvr_c1 vr_c1 0 V = V(nk_c1)-V(na_c1)
+
+* ---- C2: то же, последовательный диод + диод параллельно светодиоду
+Rhost_c2 v12 line_c2 10k
+S_c2 line_c2 0 ctrl 0 SWOC
+Rled_c2 0 nr_c2 {RLED}
+Dser_c2 nr_c2 na_c2 D4148
+Dled_c2 na_c2 nk_c2 DLED
+Vsns_c2 nk_c2 line_c2 0
+Drev_c2 nk_c2 na_c2 D4148
+Bvr_c2 vr_c2 0 V = V(nk_c2)-V(na_c2)
+
+* ---- D: линия 24 В, режим NC (светодиод горит постоянно) — худший нагрев резистора
+Rhost_d v24 line_d 10k
+S_d line_d 0 ctrlnc 0 SWOC
+Rled_d v24 na_d {RLED}
+Dled_d na_d nk_d DLED
+Vsns_d nk_d line_d 0
+Drev_d nk_d na_d D4148
+Bp_d p_d 0 V = (V(v24)-V(na_d))*(V(v24)-V(na_d))/{RLED}
+
+.tran 10u 100m 0 20u
+
+.meas tran n1_iled  MAX i(Vsns_n1)
+.meas tran n2_iled  MAX i(Vsns_n2)
+.meas tran ref_line AVG v(line_n1) FROM=40m TO=55m
+.meas tran a_vr     MAX v(vr_a)
+.meas tran a_p      MAX v(p_a)
+.meas tran a_line   AVG v(line_a) FROM=40m TO=55m
+.meas tran b_vr     MAX v(vr_b)
+.meas tran c1_vr    MAX v(vr_c1)
+.meas tran c1_line  AVG v(line_c1) FROM=40m TO=55m
+.meas tran c2_vr    MAX v(vr_c2)
+.meas tran c2_line  AVG v(line_c2) FROM=40m TO=55m
+.meas tran d_iled   MAX i(Vsns_d)
+.meas tran d_p      MAX v(p_d)
+
+.control
+run
+.endc
+.end
