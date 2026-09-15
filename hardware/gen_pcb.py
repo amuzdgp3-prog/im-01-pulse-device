@@ -28,7 +28,7 @@ PLACE: dict[str, tuple[float, float, float]] = {
     "F1": (12.3, 10.0, 90), "D2": (16.9, 10.0, 90), "D1": (12.3, 17.0, 90), "C1": (18.8, 19.5, 0),
     "C2": (20.6, 9.0, 90), "C3": (23.0, 9.0, 90),
     # преобразователь; U1 повёрнут на 270°: слева BOOT/VIN/EN/RT, справа SW/GND/PGOOD/FB
-    "U1": (30.0, 8.0, 270), "C4": (25.2, 7.4, 90), "C5": (30.0, 3.8, 0),
+    "U1": (30.0, 8.0, 270), "C4": (25.2, 7.4, 270), "C5": (30.0, 3.8, 0),
     "R1": (26.2, 14.0, 90), "R2": (27.9, 14.0, 90), "R3": (29.6, 14.0, 90),
     "R4": (31.3, 14.0, 90), "R5": (33.0, 14.0, 90),
     "L1": (39.5, 7.5, 0), "D3": (36.2, 14.4, 270), "C6": (45.0, 5.0, 90), "C7": (45.0, 10.0, 90),
@@ -39,17 +39,20 @@ PLACE: dict[str, tuple[float, float, float]] = {
     "D5": (48.5, 15.0, 0),
     # модем и антенна
     "U7": (60.0, 25.0, 0),
-    "R26": (70.0, 18.4, 0), "C28": (69.0, 20.2, 90), "C29": (72.6, 20.2, 90), "J5": (75.5, 18.4, 0),
+    "R26": (70.0, 18.4, 0), "C28": (69.0, 20.2, 270), "C29": (72.6, 20.2, 270), "J5": (75.5, 18.4, 0),
     # SIM
-    "J4": (60.0, 45.0, 0), "U8": (51.5, 37.5, 0), "R30": (48.3, 38.6, 90),
-    "R23": (50.2, 29.4, 0), "R24": (50.2, 31.0, 0), "R25": (50.2, 32.6, 0),
+    # U8 развёрнут: земляной вывод 2 смотрит вправо, в свободное место под модемом
+    "J4": (60.0, 45.0, 0), "U8": (51.5, 37.5, 180), "R30": (48.3, 38.6, 90),
+    # R23–R25 развёрнуты: вывод со стороны модема (1) — справа, к модему; линии SIM прямые и короткие
+    "R23": (50.2, 29.4, 180), "R24": (50.2, 31.0, 180), "R25": (50.2, 32.6, 180),
     "C24": (50.0, 41.0, 90), "C25": (50.0, 44.0, 90), "C26": (50.0, 46.5, 90), "C27": (50.0, 49.0, 90),
     # питание MCU
     "U2": (27.0, 23.0, 0), "C15": (24.0, 23.0, 90), "C16": (27.0, 26.2, 0), "C14": (31.5, 44.8, 0),
     # MCU, FRAM, транслятор уровней
     "U3": (37.0, 31.0, 0), "C17": (29.0, 28.8, 90), "C18": (30.9, 30.6, 90), "C20": (29.3, 32.6, 90),
     "R6": (28.5, 38.5, 90), "R7": (30.2, 38.5, 90), "C19": (31.9, 38.5, 90),
-    "U9": (36.0, 39.5, 0), "C34": (37.4, 36.95, 0), "C35": (34.6, 36.95, 0),
+    # U9 развёрнут: земляной вывод 2 смотрит вправо, в свободное место (слева тесно — датчик 12 В)
+    "U9": (36.0, 39.5, 180), "C34": (38.0, 36.95, 0), "C35": (34.2, 36.95, 0),
     "U4": (37.5, 21.0, 0), "C21": (42.0, 20.0, 90), "R10": (42.0, 23.0, 90),
     # управление модемом и SWD
     "J6": (46.3, 19.0, 0),
@@ -66,8 +69,7 @@ PLACE: dict[str, tuple[float, float, float]] = {
     "SW1": (42.5, 48.5, 0), "R29": (38.5, 44.0, 90), "C30": (40.2, 44.0, 90),
     # контрольные точки
     "TP1": (15.0, 3.8, 0), "TP2": (47.45, 11.5, 0), "TP3": (31.0, 23.8, 0), "TP4": (8.0, 3.8, 0),
-    "TP5": (44.5, 41.0, 0), "TP6": (46.5, 41.0, 0), "TP7": (64.0, 13.2, 0), "TP8": (66.5, 13.2, 0),
-    "TP9": (71.0, 27.0, 0), "TP10": (71.0, 29.0, 0), "TP11": (71.0, 31.0, 0), "TP12": (71.0, 33.0, 0),
+    "TP5": (44.5, 41.0, 0), "TP6": (46.5, 41.0, 0),     "TP9": (71.0, 27.0, 0), "TP10": (71.0, 29.0, 0), "TP11": (71.0, 31.0, 0), "TP12": (71.0, 33.0, 0),
     "TP13": (57.8, 35.3, 0),
 }
 
@@ -92,12 +94,25 @@ def P(x: float, y: float) -> VECTOR2I:
     return VECTOR2I(FromMM(OX + x), FromMM(OY + y))
 
 
-def fix_models(fp, footprint_id: str) -> None:
-    if footprint_id.split(":", 1)[0] != kilib.LCSC_LIB:
+def fix_models(fp, footprint_id: str | None = None) -> None:
+    """Пути 3D-моделей LCSC — относительно проекта (.step). Список пересоздаётся целиком:
+    присваивание m_Filename элементу fp.Models() меняет временную копию, а не модель."""
+    if footprint_id is not None and footprint_id.split(":", 1)[0] != kilib.LCSC_LIB:
         return
+    rebuilt = []
     for m in fp.Models():
-        step = Path(Path(m.m_Filename).name).with_suffix(".step").name
-        m.m_Filename = f"${{KIPRJMOD}}/lib/lcsc.3dshapes/{step}"
+        if m.m_Filename.startswith("${"):
+            return
+        nm = pcbnew.FP_3DMODEL()
+        nm.m_Filename = f"${{KIPRJMOD}}/lib/lcsc.3dshapes/{Path(Path(m.m_Filename).name).with_suffix('.step').name}"
+        nm.m_Scale, nm.m_Rotation, nm.m_Offset = m.m_Scale, m.m_Rotation, m.m_Offset
+        nm.m_Show = True
+        rebuilt.append(nm)
+    if not rebuilt:
+        return
+    fp.Models().clear()
+    for nm in rebuilt:
+        fp.Add3DModel(nm)
 
 
 def add_field(fp, name: str, value: str) -> None:
@@ -144,6 +159,12 @@ def build() -> pcbnew.BOARD:
         add_field(fp, "MPN", p.mpn)
         fix_models(fp, p.footprint)
         fp.Value().SetVisible(False)
+        # обозначения 0.8 мм (минимум JLCPCB для читаемой шелкографии) — меньше наложений у мелочи
+        fp.Reference().SetTextSize(VECTOR2I(FromMM(0.8), FromMM(0.8)))
+        fp.Reference().SetTextThickness(FromMM(0.15))
+        if p.ref == "U1":
+            # преобразователь: сплошное соединение с заливкой — отвод тепла через площадку и вывод 7
+            fp.SetLocalZoneConnection(pcbnew.ZONE_CONNECTION_FULL)
         board.Add(fp)
         # безымянные металлизированные отверстия (теплоотвод под корпусом) — в цепь центральной площадки
         ep_net = None
@@ -187,6 +208,7 @@ def build() -> pcbnew.BOARD:
         z.SetThermalReliefGap(FromMM(0.3))
         z.SetThermalReliefSpokeWidth(FromMM(0.4))
         z.SetPadConnection(pcbnew.ZONE_CONNECTION_THERMAL)
+        z.SetIslandRemovalMode(pcbnew.ISLAND_REMOVAL_MODE_ALWAYS)
         ol = z.Outline()
         ol.NewOutline()
         for cx, cy in ((0.3, 0.3), (W - 0.3, 0.3), (W - 0.3, H - 0.3), (0.3, H - 0.3)):

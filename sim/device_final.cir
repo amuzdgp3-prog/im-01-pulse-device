@@ -1,0 +1,131 @@
+* IM-01 virtual model: whole device with final component values
+* Шаблон для run_final.py. Одна схема на всё устройство: вход 12 В с защитой, LMR16020 (усреднённая
+* модель), VBAT с тремя полимерными 470 мкФ, модем как нагрузка с пачками передачи, отдельное
+* питание MCU через BAT54 и накопитель 470 мкФ, два оптронных входа (МОНЕТА — NO, КУПЮРА — NC),
+* датчик пропадания 12 В. В момент TLOSS линия 12 В аппарата пропадает посреди передачи.
+@PARAMS@
+
+.model DSCH D(IS=5u RS=0.05 N=1.5 CJO=300p)
+.model DBAT54 D(IS=2u RS=1.5 N=1.1 CJO=10p)
+.model DTVS D(IS=1e-12 N=1.5 RS=1.2 BV=37.5 IBV=1m)
+.model DCLAMP D(IS=1e-14 N=0.3)
+.model SWOC SW(VT=0.5 VH=0.05 RON=5 ROFF=100Meg)
+.model DLED D(IS=1.7p N=2 RS=1 CJO=30p)
+.model D4148 D(IS=2.52n RS=0.568 N=1.752 CJO=4p M=0.4 TT=20n)
+.model QPT NPN(BF=200 IS=1e-14 VAF=100 CJC=15p CJE=15p TF=2u)
+
+* ---------------- линия 12 В аппарата: пропадает в TLOSS, прочая нагрузка тянет её к нулю через 1 Ом
+Vline l12 0 PWL(0 12 {TLOSS} 12 {TLOSS+0.1m} 0)
+Rline l12 l12r 0.05
+* акцепторы питаются от той же линии
+* ---------------- вход питания устройства: предохранитель → Шоттки → TVS → входные конденсаторы
+Rptc l12r vinf 0.5
+Dsch vinf vin DSCH
+Dtvs 0 vin DTVS
+Cin1 vin nci1 47u
+Rci1 nci1 0 0.4
+Cin2 vin 0 4u
+* датчик пропадания: делитель 100к/10к + 100 нФ до выпрямителя (раньше видит пропадание)
+Rs1 vinf vsense 100k
+Rs2 vsense 0 10k
+Cs vsense 0 100n
+
+* ---------------- LMR16020: усреднённая модель с токовым управлением, ПИ по VBAT, ограничение тока
+Ben en 0 V = 0.5*(1+tanh((V(vin)-V(bulk)-0.6)/0.05)) * 0.5*(1+tanh((V(vin)-4.0)/0.1))
+Be err 0 V = 3.84 - V(bulk)
+Bint 0 integ I = {KI}*1e-6*V(err)
+Cint integ 0 1u
+Rint integ 0 1G
+Dhi integ vhi DCLAMP
+Vhi vhi 0 {ILIM}
+Dlo vlo integ DCLAMP
+Vlo vlo 0 -0.5
+Bcmd cmd 0 V = max(0, min({ILIM}, {KP}*V(err) + V(integ)))
+Rl cmd il 1
+Cl il 0 0.8u
+Bil 0 bulk I = V(il)*V(en)
+Bin vin 0 I = V(bulk)*V(il)*V(en)/(0.87*max(V(vin),1))
+
+* ---------------- VBAT: 2×22 мкФ керамика у преобразователя, C8/C9/C33 — полимер 470 мкФ / 20 мОм
+Cc6 bulk nc6 44u
+Rc6 nc6 0 3m
+Cp1 bulk np1 470u
+Rp1 np1 0 20m
+Cp2 bulk np2 470u
+Rp2 np2 0 20m
+Rtr1 bulk nmod1 5m
+Ltr1 nmod1 vmod 5n
+Cp3 vmod np3 470u
+Rp3 np3 0 20m
+Cc10 vmod nc10 22u
+Rc10 nc10 0 3m
+* модем: фон 100 мА и пачки передачи
+Ibase vmod 0 0.1
+@LOAD@
+
+* ---------------- питание MCU: BAT54 → накопитель 470 мкФ → LDO 3.3 В → MCU + FRAM
+Dmcu vmod vmcuin DBAT54
+Cres vmcuin nres 470u
+Rres nres 0 20m
+Bldo v33 0 V = max(0, min(3.3, V(vmcuin)-0.12))
+Rmcu v33 0 {RMCU}
+* линейный стабилизатор: входной ток = выходной + собственный 60 мкА
+Bldoin vmcuin 0 I = V(v33)/{RMCU} + 60u
+
+* ---------------- вход МОНЕТА (выход акцептора NO): 2.2 кОм, последовательный + параллельный 1N4148, EL817
+Rhost_c l12r line_c 10k
+S_c line_c 0 ctl_c 0 SWOC
+Rled_c l12r nr_c 2.2k
+Dser_c nr_c na_c D4148
+Dled_c na_c nk_c DLED
+Vsns_c nk_c line_c 0
+Drev_c nk_c na_c D4148
+Fb_c 0 bq_c Vsns_c {CTR/200}
+Q_c oc_c bq_c 0 QPT
+Rpu_c v33 oc_c 4.7k
+Rf_c oc_c mcu_c 10k
+Cf_c mcu_c 0 100n
+
+* ---------------- вход КУПЮРА (выход акцептора NC — нормально замкнут)
+Rhost_b l12r line_b 10k
+S_b line_b 0 ctl_b 0 SWOC
+Rled_b l12r nr_b 2.2k
+Dser_b nr_b na_b D4148
+Dled_b na_b nk_b DLED
+Vsns_b nk_b line_b 0
+Drev_b nk_b na_b D4148
+Fb_b 0 bq_b Vsns_b {CTR/200}
+Q_b oc_b bq_b 0 QPT
+Rpu_b v33 oc_b 4.7k
+Rf_b oc_b mcu_b 10k
+Cf_b mcu_b 0 100n
+
+* управление: 1 = выход акцептора замкнут. МОНЕТА: импульс 25 мс в 20 мс, спайк 0.2 мс в 70 мс,
+* импульс 50 мс в 90 мс. КУПЮРА (NC): размыкание 50 мс в 30 мс, спайк 0.2 мс в 100 мс.
+Vctl_c ctl_c 0 PWL(0 0 20m 0 20.01m 1 45m 1 45.01m 0 70m 0 70.01m 1 70.21m 1 70.22m 0 90m 0 90.01m 1 140m 1 140.01m 0)
+Vctl_b ctl_b 0 PWL(0 1 30m 1 30.01m 0 80m 0 80.01m 1 100m 1 100.01m 0 100.21m 0 100.22m 1)
+
+.tran 5u {TSTOP} 0 20u
+
+* питание модема во время работы (до пропадания 12 В)
+.meas tran vmod_min  MIN v(vmod)  FROM=10m TO={TLOSS}
+.meas tran vmod_max  MAX v(vmod)  FROM=10m TO={TLOSS}
+.meas tran v33_min   MIN v(v33)   FROM=10m TO={TLOSS}
+* входы
+.meas tran c_fall    WHEN v(mcu_c)=0.99 FALL=1 TD=20m
+.meas tran c_rise    WHEN v(mcu_c)=2.31 RISE=1 TD=45m
+.meas tran c_spk     MIN  v(mcu_c) FROM=70m TO=76m
+.meas tran b_rise    WHEN v(mcu_b)=2.31 RISE=1 TD=30m
+.meas tran b_fall    WHEN v(mcu_b)=0.99 FALL=1 TD=80m
+.meas tran b_spk     MAX  v(mcu_b) FROM=100m TO=106m
+* пропадание 12 В
+.meas tran t_sense   WHEN v(vsense)=0.82 FALL=1 TD={TLOSS}
+.meas tran t_vmod34  WHEN v(vmod)=3.4 FALL=1 TD={TLOSS}
+.meas tran t_v33_30  WHEN v(v33)=3.0 FALL=1 TD={TLOSS}
+.meas tran t_v33_27  WHEN v(v33)=2.7 FALL=1 TD={TLOSS}
+
+.control
+run
+@WRDATA@
+.endc
+.end

@@ -219,7 +219,7 @@ modem_pins.update({p: "GND" for p in GND_PINS})
 modem_pins.update({
     "7": "MODEM_PWRKEY", "11": "SIM_DATA_M", "12": "SIM_RST_M", "13": "SIM_CLK_M", "14": "SIM_VDD",
     "15": "MODEM_RESET_N", "16": "NET_STATUS", "17": "MODEM_RXD", "18": "MODEM_TXD", "24": "VDD_EXT",
-    "35": "ANT_MOD", "38": "MODEM_DBG_RX", "39": "MODEM_DBG_TX", "42": "VBAT", "43": "VBAT",
+    "35": "ANT_MOD", "42": "VBAT", "43": "VBAT",
     "59": "USB_DP", "60": "USB_DN", "61": "VBUS", "82": "USB_BOOT",
 })
 add(Part("U7", "EG800K-EU", f"{LCSC_LIB}:EG800KEULC-I03-SNNSA_C44008839", f"{LCSC_LIB}:LGA-109_L17.7-W15.8-AIR780E",
@@ -299,14 +299,17 @@ add(Part("J6", "SWD", "Connector:Conn_ARM_SWD_TagConnect_TC2030-NL",
          "Connector:Tag-Connect_TC2030-IDC-NL_2x03_P1.27mm_Vertical",
          {"1": "+3V3", "2": "SWDIO", "3": "NRST", "4": "SWCLK", "5": "GND", "6": None}, block=B, in_bom=False,
          note="площадки под Tag-Connect для прошивки на производстве"))
-for i, (net, note) in enumerate([
+for i, net in enumerate([
     ("VIN", ""), ("VBAT", ""), ("+3V3", ""), ("GND", ""),
     ("MCU_DBG_TX", "отладочный UART MCU"), ("MCU_DBG_RX", ""),
-    ("MODEM_DBG_TX", "отладка модема"), ("MODEM_DBG_RX", ""),
+    # TP7/TP8 (отладочный UART модема) убраны: их дорожки резали заливку VBAT, а для обновления
+    # прошивки модема достаточно USB (TP9–TP12). Номера оставлены, чтобы не путать с прежними версиями.
+    None, None,
     ("USB_DP", "USB модема — обновление его прошивки"), ("USB_DN", ""), ("VBUS", ""), ("USB_BOOT", ""),
     ("NET_STATUS", ""),
 ], start=1):
-    TP(f"TP{i}", net, B, note)
+    if net is not None:
+        TP(f"TP{i}", net[0], B, net[1])
 for i in range(1, 5):
     add(Part(f"H{i}", "M3", "Mechanical:MountingHole_Pad", "MountingHole:MountingHole_3.2mm_M3_Pad_Via",
              {"1": "GND"}, block=B, in_bom=False))
